@@ -4,7 +4,77 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>STUDY POINT | Admin</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+ window.uploadNote = async function () {
+  const msg = document.getElementById("noteMessage");
+  const className = document.getElementById("noteClass").value.trim();
+  const subject = document.getElementById("noteSubject").value.trim();
+  const chapter = document.getElementById("noteChapter").value.trim();
+  const file = document.getElementById("notePdf").files[0];
+
+  const isPremium = document.getElementById("notePremium").checked;
+  const isPublished = document.getElementById("notePublished").checked;
+
+  if (!className || !subject || !chapter || !file) {
+    msg.textContent = "Please fill all fields and select a PDF.";
+    return;
+  }
+
+  if (!file.name.toLowerCase().endsWith(".pdf")) {
+    msg.textContent = "Only PDF files are allowed.";
+    return;
+  }
+
+  msg.textContent = "Uploading...";
+
+  try {
+    const { data: admin, error: adminError } =
+      await supabaseClient.rpc("is_admin");
+
+    if (adminError || admin !== true) {
+      throw new Error("Admin verification failed.");
+    }
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const filePath = `${Date.now()}_${safeName}`;
+
+    const { error: uploadError } = await supabaseClient
+      .storage
+      .from("study-notes")
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { error: insertError } = await supabaseClient
+      .from("notes")
+      .insert({
+        "class": className,
+        subject: subject,
+        chapter: chapter,
+        file_path: filePath,
+        pdf_url: filePath,
+        is_premium: isPremium,
+        is_published: isPublished
+      });
+
+    if (insertError) {
+      await supabaseClient.storage
+        .from("study-notes")
+        .remove([filePath]);
+      throw insertError;
+    }
+
+    msg.textContent = "PDF uploaded successfully!";
+    document.getElementById("noteClass").value = "";
+    document.getElementById("noteSubject").value = "";
+    document.getElementById("noteChapter").value = "";
+    document.getElementById("notePdf").value = "";
+
+  } catch (error) {
+    msg.textContent = "Error: " + error.message;
+  }
+};
+</script>
 <style>
 :root{--navy:#10264f;--blue:#2457d6;--bg:#f4f7fc;--ink:#17233b;--muted:#71809b;--line:#e7ecf4;--white:#fff;--green:#15966a;--orange:#d98216}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif}
@@ -86,7 +156,34 @@
   <div class="panel"><div class="panelhead"><div><h3>Admin status</h3><div class="sub">Authenticated administrator</div></div><span class="btn light">Verified</span></div><div class="activity"><div class="row"><span class="dot"></span><div><b>Supabase authentication active</b><small>Signed-in account passed the admin role check.</small></div></div><div class="row"><span class="dot"></span><div><b>Private PDF bucket</b><small>Storage access is restricted by admin policies.</small></div></div></div><div class="notice"><b>Setup note:</b> This version secures admin sign-in. Notes, courses, student lists, queries and payments still need their database actions connected and tested before use.</div></div>
  </div>
 </section>
-<section class="page" id="notes"><div class="panel"><div class="panelhead"><div><h3>Notes & PDFs</h3><div class="sub">Manage learning material by class, subject and chapter.</div></div></div><div class="empty">Notes list and upload form will be connected in the next step.</div></div></section>
+<section class="page" id="notes"><div class="panel"><div class="panelhead"><div><h3>Notes & PDFs</h3><div class="sub">Manage learning material by class, subject and chapter. <div class="panel" style="margin-top:20px;padding:20px;">
+  <h3>Upload New Notes</h3>
+
+  <input id="noteClass" type="text" placeholder="Class (e.g. 11)" required>
+
+  <input id="noteSubject" type="text" placeholder="Subject" required>
+
+  <input id="noteChapter" type="text" placeholder="Chapter Name" required>
+
+  <input id="notePdf" type="file" accept="application/pdf" required>
+
+  <label>
+    <input id="notePremium" type="checkbox">
+    Premium Notes
+  </label>
+
+  <label>
+    <input id="notePublished" type="checkbox" checked>
+    Publish Notes
+  </label>
+
+  <button type="button" onclick="uploadNote()">
+    Upload PDF
+  </button>
+
+  <p id="noteMessage"></p>
+</div>
+</div></div></div><div class="empty">Notes list and upload form will be connected in the next step.</div></div></section>
 <section class="page" id="courses"><div class="panel"><div class="panelhead"><div><h3>Courses</h3><div class="sub">Create courses and manage publishing status.</div></div></div><div class="empty">Course management will be connected in the next step.</div></div></section>
 <section class="page" id="students"><div class="panel"><div class="panelhead"><div><h3>Students</h3><div class="sub">Student profiles and class information.</div></div></div><div class="empty">Student records will be connected in the next step.</div></div></section>
 <section class="page" id="queries"><div class="panel"><div class="panelhead"><div><h3>Student Queries</h3><div class="sub">Review questions and respond to students.</div></div></div><div class="empty">Student queries will be connected in the next step.</div></div></section>
